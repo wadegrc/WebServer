@@ -7,6 +7,20 @@
 #include<unordered_map>
 #include<unistd.h>
 #include<string>
+#include<signal.h>
+#include<sys/types.h>
+#include<sys/epoll.h>
+#include<fcntl.h>
+#include<sys/socket.h>
+#include<netinet/in.h>
+#include<arpa/inet.h>
+#include<assert.h>
+#include<sys/stat.h>
+#include<pthread.h>
+#include<stdlib.h>
+#include<sys/mman.h>
+#include<stdarg.h>
+#include<errno.h>
 
 class http_conn
 {
@@ -38,9 +52,9 @@ public:
     /*处理客户请求*/
     void process();
     /*非阻塞写操作*/
-    void wirte();
+    bool wirte();
     /*非阻塞读操作*/
-    void read();
+    bool read();
 private:
     /*初始化连接*/
     void init();
@@ -93,7 +107,7 @@ private:
     CHECK_STATE m_check_state;
     /*请求方法*/
     METHOD m_method;
-    std::string file_name;/*用户请求的文件名*/
+    std::string url;/*用户请求的文件名*/
     std::unordered_map<std::string,std::string>request_head;/*请求头部内容*/
     std::string request_line = "";/*报文中的每一行*/
     std::string version;
