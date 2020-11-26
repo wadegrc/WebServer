@@ -1,8 +1,8 @@
 #include"treatRequest.h"
-
+#include"util.h"
 using std::string;
 /*定义http响应的一些状态信息*/
-
+int main(){}
 const string ok_200_title = "OK";
 const string error_400_title = "Bad Request";
 const string error_400_form = "Your request has bad syntax or is inherently impossible to satisfy.\n";
@@ -47,9 +47,9 @@ void http_conn::init()
     m_linger = false;
 
     m_method = GET;
-    m_url = 0;
-    m_version = 0;
-    m_host = 0;
+    m_url = "";
+    m_version = "";
+    m_host = "";
     m_start_line = 0;
     m_checked_idx = 0;
     m_read_idx = 0;
@@ -65,7 +65,7 @@ http_conn::LINE_STATUS http_conn::parse_line()
     for(; m_checked_idx < m_read_idx; ++m_checked_idx )
     {
         temp = m_read_buf[ m_checked_idx ];
-        request_line.emplace_back(temp);
+        request_line.push_back(temp);
         if( temp == '\r' )
         {
             if( ( m_checked_idx + 1 ) == m_read_idx )
@@ -137,7 +137,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line()
     }
     pos = request_line.find(" ");
     int _pos = request_line.find(" ", pos );
-    url = request_line.substr(pos+1, _pos-pos-1 );
+    m_url = request_line.substr(pos+1, _pos-pos-1 );
     pos = request_line.find("HTTP/1.1");
     if( pos < 0 )
     {
@@ -148,12 +148,12 @@ http_conn::HTTP_CODE http_conn::parse_request_line()
         }
         else
         {
-            version = "HTTP/1.0";
+           m_version = "HTTP/1.0";
         }
     }
     else 
     {
-        version = "HTTP/1.1";
+        m_version = "HTTP/1.1";
     }
     m_check_state = CHECK_STATE_HEADER;
     return NO_REQUEST;
@@ -192,7 +192,7 @@ http_conn::HTTP_CODE http_conn::parse_headers()
     /*处理Content-Length字段*/
     else if( request_line.find("Content-Length:", 15 ) >= 0 )
     {
-        m_content_length = stoi(request_line, 15, 10 );/*将从15位置开始的字符串转整型*/
+        m_content_length = stoi(request_line, (std::size_t*)15);/*将从15位置开始的字符串转整型*/
     }
     /*处理HOST字段*/
     else if( request_line.find("Host:") >= 0 )
@@ -201,7 +201,7 @@ http_conn::HTTP_CODE http_conn::parse_headers()
     }
     else
     {
-        printf( "oop! unknow header %s\n", request_line );
+        printf( "oop! unknow header %s\n", request_line.c_str()  );
     }
 
     return NO_REQUEST;
@@ -273,10 +273,10 @@ http_conn::HTTP_CODE http_conn::process_read()
 /*当得到一个完整的/正确的HTTP请求时，我们就分析目标文件的属性，如果目标文件存在、对所有用户可读
  * 且不是目录。则使用mmap将其映射到内存地址m_file_address处，并告诉调用者获取文件成功*/
 
-http_conn::HTTP_CODE http_conn::::do_request()
+http_conn::HTTP_CODE http_conn::do_request()
 {
-    string curr_file_name = doc_root + url;
-    strcpy(m_real_file, curr_file_name.c_str());
+    string curr_file_name = doc_root + m_url;
+    const char* m_real_file = curr_file_name.c_str();
     if( stat( m_real_file, &m_file_stat ) < 0 )
     {
         return NO_REQUEST;
@@ -378,9 +378,9 @@ bool http_conn::add_response( const char* format, ... )
     return true;
 }
 
-bool http_conn::add_status_line( int status, const char* title )
+bool http_conn::add_status_line( int status, string title )
 {
-    return add_response( "%s %d %s\r\n", "HTTP/1.1", status, title );
+    return add_response( "%s %d %s\r\n", "HTTP/1.1", status, title.c_str() );
 }
 
 bool http_conn::add_headers( int content_len )
@@ -406,9 +406,9 @@ bool http_conn::add_blank_line()
     return add_response( "%s", "\r\n" );
 }
 
-bool http_conn::add_content( const char* content )
+bool http_conn::add_content( string content )
 {
-    return add_content( "%s", content );
+    return add_response( "%s", content.c_str() );
 }
 
 /*根据服务器处理HTTP请求的结果，决定返回给客户端的内容*/
@@ -419,7 +419,7 @@ bool http_conn::process_write( HTTP_CODE ret )
     case INTERNAL_ERROR:
         {
             add_status_line( 500, error_500_title );
-            add_headers( strlen( error_500_form ) );
+            add_headers(  error_500_form.size() );
             if( ! add_content( error_500_form ) )
             {
                 return false;
@@ -429,7 +429,7 @@ bool http_conn::process_write( HTTP_CODE ret )
     case BAD_REQUEST:
         {
             add_status_line( 400, error_400_title );
-            add_headers( strlen( error_400_form ) );
+            add_headers( error_400_form.size() );
             if( !add_content( error_400_form ) )
             {
                 return false;
@@ -439,7 +439,7 @@ bool http_conn::process_write( HTTP_CODE ret )
     case NO_RESOURCE:
         {
             add_status_line( 404, error_404_title );
-            add_headers( strlen( error_404_form ) );
+            add_headers( error_404_form.size() );
             if( ! add_content( error_404_form ) )
             {
                 return false;
@@ -449,7 +449,7 @@ bool http_conn::process_write( HTTP_CODE ret )
     case FORBIDDEN_REQUEST:
         {
             add_status_line( 403, error_403_title );
-            add_headers( strlen( error_403_form ) );
+            add_headers( error_403_form.size() );
             if( !add_content( error_403_form ) )
             {
                 return false;
@@ -488,4 +488,22 @@ bool http_conn::process_write( HTTP_CODE ret )
     m_iv[ 0 ].iov_len = m_write_idx;
     m_iv_count = 1;
     return true;
+}
+
+/*由线程池中的工作线程调用，这是处理HTTP请求的入口函数*/
+void http_conn::process()
+{
+    HTTP_CODE read_ret = process_read();
+    if( read_ret == NO_REQUEST )
+    {
+        modfd( m_epollfd, m_sockfd, EPOLLIN );
+        return;
+    }
+
+    bool write_ret = process_write( read_ret );
+    if( !write_ret )
+    {
+        close_conn();
+    }
+    modfd( m_epollfd, m_sockfd, EPOLLOUT );
 }

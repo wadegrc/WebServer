@@ -21,10 +21,13 @@
 #include<sys/mman.h>
 #include<stdarg.h>
 #include<errno.h>
-
+#include<string.h>
+#include<sys/uio.h>
 class http_conn
 {
 public:
+    /*文件名的最大长度*/
+    
     enum METHOD{ /*请求方法*/
         GET = 0, POST, HEAD, PUT, DELETE,
         TRACE, OPTIONS, CONNECT, PATCH };
@@ -52,30 +55,31 @@ public:
     /*处理客户请求*/
     void process();
     /*非阻塞写操作*/
-    bool wirte();
+    bool write();
     /*非阻塞读操作*/
     bool read();
 private:
     /*初始化连接*/
     void init();
     /*分析请求的函数*/
-    void process_read();
+    HTTP_CODE process_read();
     /*请求行*/
     HTTP_CODE parse_request_line();
     /*读取报文中的没一行*/
     LINE_STATUS parse_line();
     /*分析头部*/
-    HTTP_CODE parse_header();
+    HTTP_CODE parse_headers();
     /*分析正文*/
     HTTP_CODE parse_content();
     /*处理请求*/
     HTTP_CODE do_request();
-
+    /*填充HTTP应答*/
+    bool process_write( HTTP_CODE ret );
     /*做出应答*/
     void unmap();
     bool add_response( const char* format, ... );
-    bool add_content( const char* content );
-    bool add_status_line( int status, const char* title );
+    bool add_content( const std::string content );
+    bool add_status_line( int status, const std::string title );
     bool add_headers( int content_length );
     bool add_content_length( int content_length );
     bool add_linger();
@@ -102,20 +106,20 @@ private:
     char m_write_buf[ WRITE_BUFFER_SIZE ];
     /*写缓冲区中待发送的字节数*/
     int m_write_idx;
-
+    /*正文长度*/
+    int m_content_length;
     /*主状态机所处的状态*/
     CHECK_STATE m_check_state;
     /*请求方法*/
     METHOD m_method;
-    std::string url;/*用户请求的文件名*/
+    std::string m_url;/*用户请求的文件名*/
     std::unordered_map<std::string,std::string>request_head;/*请求头部内容*/
     std::string request_line = "";/*报文中的每一行*/
-    std::string version;
+    std::string m_version;
     /*主机名*/
     std::string m_host;
     /*HTTP请求的消息体*/
     std::string content;
-
     /*HTTP请求是否要求保持连接*/
     bool m_linger;
 
