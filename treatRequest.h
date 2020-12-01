@@ -23,6 +23,11 @@
 #include<errno.h>
 #include<string.h>
 #include<sys/uio.h>
+#include<memory>
+#include"timer.h"
+using std::shared_ptr;
+using std::weak_ptr;
+class TimerNode;
 class http_conn
 {
 public:
@@ -58,6 +63,11 @@ public:
     bool write();
     /*非阻塞读操作*/
     bool read();
+    /*获取sockfd*/
+    int getFd();
+    /*连接计时器*/
+    void linkTimer(std::shared_ptr<TimerNode>mtimer);
+
 private:
     /*初始化连接*/
     void init();
@@ -132,5 +142,7 @@ private:
     /*我们将采用writev来执行写操作，其中m_iv_count表示被写内存块的数量*/
     struct iovec m_iv[2];
     int m_iv_count;
+    /*计时器*/
+    weak_ptr<TimerNode>timer;
 };
 #endif

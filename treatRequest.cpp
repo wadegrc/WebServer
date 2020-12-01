@@ -26,9 +26,19 @@ void http_conn::close_conn( bool real_close )
         removefd( m_epollfd, m_sockfd );
         m_sockfd = -1;
         m_user_count--;/*关闭一个连接时，客户数量减一*/
+        /*关闭定时器*/
+        if(timer.lock())//尝试提升为shared_ptr
+        {
+            shared_ptr<TimerNode>my_timer(timer.lock());
+            my_timer->clearReq();
+            timer.reset();
+        }
     }
 }
-
+void http_conn::linkTimer(shared_ptr<TimerNode>mtimer)
+{
+    timer = mtimer;
+}
 void http_conn::init( int sockfd, const sockaddr_in& addr )
 {
     m_sockfd = sockfd;
@@ -39,7 +49,9 @@ void http_conn::init( int sockfd, const sockaddr_in& addr )
     
     init();
 }
-
+inline int http_conn::getFd(){
+    return m_sockfd;
+}
 void http_conn::init()
 {
 
@@ -492,7 +504,12 @@ bool http_conn::process_write( HTTP_CODE ret )
 
 /*由线程池中的工作线程调用，这是处理HTTP请求的入口函数*/
 void http_conn::process()
-{
+{   
+    if(!read())
+    {
+        close_conn();
+        return ;
+    }
     HTTP_CODE read_ret = process_read();
     if( read_ret == NO_REQUEST )
     {
@@ -504,6 +521,8 @@ void http_conn::process()
     if( !write_ret )
     {
         close_conn();
+        return ;
     }
+
     modfd( m_epollfd, m_sockfd, EPOLLOUT );
 }
