@@ -1,8 +1,7 @@
 #pragma once
-#ifdef THREADPOOL_H
-#define THREADPOOL_H
 #include<pthread.h>
 #include<queue>
+#include<cstdio>
 #include"locker.h"
 #include<vector>
 #include<exception>
@@ -30,9 +29,9 @@ private:
     /*工作队列*/
     queue<T*>taskqueue;
     /*互斥锁*/
-    pthread_mutex_t lock;
+    pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
     /*条件变量*/
-    pthread_cond_t notify;
+    pthread_cond_t notify = PTHREAD_COND_INITIALIZER;
     /*是否关闭线程池*/
     bool m_stop;
 public:
@@ -55,8 +54,6 @@ threadpool< T >::threadpool( int thread_number, int max_requests ) :
         m_thread_number = thread_number;
         m_max_requests = max_requests;
     }
-    pthread_mutex_t threadpool::lock = PTHREAD_MUTEX_INTIALIZER;
-    pthread_cond_t threadpool::notify = PTHREAD_COND_INTIALIZER
     /*创建thread_number个线程，并将他们都设置为脱离线程*/
     /*脱离线程:执行完后自动回收资源*/
     for(int i = 0; i < m_thread_number; i++)
@@ -68,7 +65,7 @@ threadpool< T >::threadpool( int thread_number, int max_requests ) :
             throw exception();
         }
         /*脱离线程*/
-        if( pthread_detach( m_threads[i] ) )
+        if( pthread_detach( threads[i] ) )
         {
             threads.clear();
             throw exception();
@@ -135,5 +132,4 @@ void threadpool< T >::run()
         request->process();
     }
 }
-#endif
 

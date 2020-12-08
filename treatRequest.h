@@ -1,5 +1,4 @@
-#ifndef TREATREQUEST_H
-#define TREATREQUEST_H
+#pragma once
 /*
  *主要实现对Http请求的分析
  *通过自动机来处理请求
@@ -25,10 +24,11 @@
 #include<sys/uio.h>
 #include<memory>
 #include"timer.h"
+#include"epoll.h"
 using std::shared_ptr;
 using std::weak_ptr;
 class TimerNode;
-class http_conn
+class http_conn:public std::enable_shared_from_this<http_conn>
 {
 public:
     /*文件名的最大长度*/
@@ -55,6 +55,8 @@ public:
 public:
     /*初始化新接受的连接*/
     void init( int sockfd, const sockaddr_in& addr );
+    /*初始话listenfd*/
+    void init( int sockfd );
     /*关闭连接*/
     void close_conn( bool real_close = true );
     /*处理客户请求*/
@@ -67,7 +69,7 @@ public:
     int getFd();
     /*连接计时器*/
     void linkTimer(std::shared_ptr<TimerNode>mtimer);
-
+    void seperateTimer();
 private:
     /*初始化连接*/
     void init();
@@ -145,4 +147,4 @@ private:
     /*计时器*/
     weak_ptr<TimerNode>timer;
 };
-#endif
+

@@ -19,7 +19,7 @@
 using std::priority_queue;
 using std::deque;
 using std::shared_ptr;
-
+class http_conn;
 class TimerNode{
     typedef shared_ptr<http_conn> SP_request;
 private:

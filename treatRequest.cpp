@@ -23,7 +23,7 @@ void http_conn::close_conn( bool real_close )
 {
     if( real_close && ( m_sockfd != -1 ) )
     {
-        removefd( m_epollfd, m_sockfd );
+        Epoll::epoll_del( m_sockfd );
         m_sockfd = -1;
         m_user_count--;/*关闭一个连接时，客户数量减一*/
         /*关闭定时器*/
@@ -39,12 +39,24 @@ void http_conn::linkTimer(shared_ptr<TimerNode>mtimer)
 {
     timer = mtimer;
 }
+void http_conn::seperateTimer()
+{
+    if(timer.lock())
+    {
+        shared_ptr<TimerNode>my_timer(timer.lock());
+        my_timer->clearReq();
+        timer.reset();
+    }
+}
+void http_conn::init( int sockfd )
+{
+    m_sockfd = sockfd;
+}
 void http_conn::init( int sockfd, const sockaddr_in& addr )
 {
     m_sockfd = sockfd;
     m_address = addr;
 
-    addfd( m_epollfd, sockfd, true );
     m_user_count++;
     
     init();
@@ -288,7 +300,7 @@ http_conn::HTTP_CODE http_conn::process_read()
 http_conn::HTTP_CODE http_conn::do_request()
 {
     string curr_file_name = doc_root + m_url;
-    const char* m_real_file = curr_file_name.c_str();
+    const char*m_real_file = curr_file_name.c_str();
     if( stat( m_real_file, &m_file_stat ) < 0 )
     {
         return NO_REQUEST;
@@ -329,7 +341,7 @@ bool http_conn::write()
     int bytes_to_send = m_write_idx;
     if( bytes_to_send == 0 )
     {
-        modfd( m_epollfd, m_sockfd, EPOLLIN );
+        Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLIN );
         init();
         return true;
     }
@@ -343,7 +355,7 @@ bool http_conn::write()
              * 服务器无法立即收到同一个客户的下一个请求，但这可以保证连接的完整性*/
             if( errno == EAGAIN )
             {
-                modfd( m_epollfd, m_sockfd, EPOLLOUT );
+                Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLOUT );    
                 return true;
             }
             unmap();
@@ -358,12 +370,13 @@ bool http_conn::write()
             if( m_linger )
             {
                 init();
-                modfd( m_epollfd, m_sockfd, EPOLLIN );
+                Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLIN );
                 return true;
             }
             else
             {
-                modfd( m_epollfd, m_sockfd, EPOLLIN );
+                Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLIN );
+                
                 return false;
             }
         }
@@ -513,7 +526,7 @@ void http_conn::process()
     HTTP_CODE read_ret = process_read();
     if( read_ret == NO_REQUEST )
     {
-        modfd( m_epollfd, m_sockfd, EPOLLIN );
+        Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLIN );
         return;
     }
 
@@ -523,6 +536,10 @@ void http_conn::process()
         close_conn();
         return ;
     }
-
-    modfd( m_epollfd, m_sockfd, EPOLLOUT );
+    Epoll::add_Timer( shared_from_this(),500);
+    int ret=Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLIN );
+    if(ret<0)
+    {
+        return;
+    }
 }
