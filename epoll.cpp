@@ -78,7 +78,8 @@ int Epoll::epoll_del( int fd )
     return 0;
 }
 
-void Epoll::my_epoll_wait( int listenfd, int max_events, int timeout )
+void Epoll::my_epoll_wait( int listenfd, int max_events, int timeout ,
+                           std::shared_ptr<threadpool<http_conn>>thread_pool)
 {
     int event_count = epoll_wait(epoll_fd, events, max_events, timeout);
     if(event_count<0)
@@ -86,12 +87,21 @@ void Epoll::my_epoll_wait( int listenfd, int max_events, int timeout )
         perror("epoll wait error!");
     }
     vector<SP_ReqData>req_data = getEventRequest(listenfd, event_count);
-
+    if(req_data.size() > 0)
+    {
+        for(auto &req:req_data)
+        {
+            if(thread_pool->thread_add(req)<0){
+                break;
+            }
+        }
+    }
 }
 
 //接受链接
 void Epoll::acceptConn(int listen_fd)
 {
+    printf("acceptConn\n");
     struct sockaddr_in client_addr;
     memset(&client_addr,0,sizeof(struct sockaddr_in));
 
@@ -102,7 +112,7 @@ void Epoll::acceptConn(int listen_fd)
     {
         printf("%s\n", inet_ntoa(client_addr.sin_addr));
         printf("%d\n", ntohs(client_addr.sin_port));
-
+        printf("%d\n",accept_fd);
         //设为非阻塞模式
         int ret = setnonblocking(accept_fd);
         if(ret<0)
@@ -122,6 +132,7 @@ void Epoll::acceptConn(int listen_fd)
 //获取响应fd
 vector<std::shared_ptr<http_conn>>Epoll::getEventRequest(int listen_fd, int events_num)
 {
+    printf("getEventRequest\n");
     std::vector<SP_ReqData>req_data;
     for(int i=0;i<events_num;++i)
     {
@@ -148,21 +159,22 @@ vector<std::shared_ptr<http_conn>>Epoll::getEventRequest(int listen_fd, int even
                 }
                 continue;
             }
-        }
 
-        /**
-         * 将请求加入线程
-         * 加入线程之前将计时器与request分离，处理完后加入新的timer*/
-        SP_ReqData cur_req(fd2req[fd]);
-
-        cur_req->seperateTimer();
-        req_data.push_back(cur_req);
-        if(fd2req.count(fd)!=0)
-        {
-            fd2req.erase(fd);
-        }
-        return req_data;
+             /**
+             * 将请求加入线程
+             * 加入线程之前将计时器与request分离，处理完后加入新的timer*/
+             SP_ReqData cur_req(fd2req[fd]);
+             cur_req->seperateTimer();
+             req_data.push_back(cur_req);
+             if(fd2req.count(fd)!=0)
+             {   
+                 fd2req.erase(fd);
+             }
+             
+         }
     }
+    return req_data;
+
 }
 
 void Epoll::add_Timer(std::shared_ptr<http_conn>request_data, int timeout)

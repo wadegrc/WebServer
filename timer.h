@@ -1,5 +1,4 @@
 #pragma once
-#ifndef TIMER_H
 /**
  * 计时器的实现
  * 通过优先队列构造小根堆计时器，每次循环完毕检查检查并删除超时链接
@@ -33,7 +32,7 @@ public:
     inline bool isDeleted() const;
     bool isvalid();
     inline void setDeleted();
-    inline size_t getExpiredTime() const;
+    size_t getExpiredTime() const;
     TimerNode(SP_request _request, int _expiredtime );
     ~TimerNode();
     void update(int _time);
@@ -60,4 +59,3 @@ public:
     void addTimer(SP_TimerNode timernode);
     void hanlde_expired_event();
 };
-#endif

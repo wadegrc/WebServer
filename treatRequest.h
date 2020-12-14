@@ -66,7 +66,7 @@ public:
     /*非阻塞读操作*/
     bool read();
     /*获取sockfd*/
-    int getFd();
+    int getFd(){return m_epollfd;};
     /*连接计时器*/
     void linkTimer(std::shared_ptr<TimerNode>mtimer);
     void seperateTimer();

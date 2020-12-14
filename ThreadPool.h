@@ -5,6 +5,7 @@
 #include"locker.h"
 #include<vector>
 #include<exception>
+#include<memory>
 /* *
  * 此处为线程池头文件
  * 实现:
@@ -27,7 +28,7 @@ private:
     /*线程数组*/
     vector<pthread_t>threads;
     /*工作队列*/
-    queue<T*>taskqueue;
+    queue<std::shared_ptr<T>>taskqueue;
     /*互斥锁*/
     pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
     /*条件变量*/
@@ -38,8 +39,8 @@ public:
     threadpool( int thread_number, int max_requests );
     ~threadpool();
     int thread_destroy();
-    bool thread_add(T* request);
-    void* worker( void* arg );
+    bool thread_add(std::shared_ptr<T> request);
+    static void* worker( void* arg );
     void run();
 };
 
@@ -82,7 +83,7 @@ threadpool< T >::~threadpool()
 
 
 template< typename T >
-bool threadpool<T>::thread_add( T* request )
+bool threadpool<T>::thread_add( std::shared_ptr<T> request )
 {
     pthread_mutex_lock(&lock);
     if( taskqueue.size() > m_max_requests )
@@ -123,7 +124,7 @@ void threadpool< T >::run()
             continue;
         }
         T* request = taskqueue.front();
-        taskqueue.pop_front();
+        taskqueue.pop();
         pthread_mutex_unlock(&lock);
         if( !request )
         {

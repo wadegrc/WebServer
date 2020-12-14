@@ -1,8 +1,6 @@
 #include"treatRequest.h"
-#include"util.h"
 using std::string;
 /*定义http响应的一些状态信息*/
-int main(){}
 const string ok_200_title = "OK";
 const string error_400_title = "Bad Request";
 const string error_400_form = "Your request has bad syntax or is inherently impossible to satisfy.\n";
@@ -60,9 +58,6 @@ void http_conn::init( int sockfd, const sockaddr_in& addr )
     m_user_count++;
     
     init();
-}
-inline int http_conn::getFd(){
-    return m_sockfd;
 }
 void http_conn::init()
 {

@@ -2,7 +2,7 @@
 #include<sys/time.h>
 #include<string>
 #include"timer.h"
-#include"util.h"
+#include"epoll.h"
 using namespace std;
 TimerNode::TimerNode(SP_request _request, int timeout):deleted(false),request(_request)
 {
@@ -17,7 +17,7 @@ TimerNode::~TimerNode()
     /*临时变量request*/
     if(request)
     {
-        removefd(request->m_epollfd,request->getFd());
+        Epoll::epoll_del(request->getFd());
     }
 }
 
