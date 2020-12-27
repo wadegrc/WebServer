@@ -79,6 +79,7 @@ void addsig( int sig, void( handler )(int), bool restart = true )
         sa.sa_flags |= SA_RESTART;
     }
     sigfillset( &sa.sa_mask );
+    assert( sigaction( sig, &sa, NULL ) != -1 );
 }
 int main()
 {
@@ -92,17 +93,9 @@ int main()
         return 1;
     }
     /*创建线程池*/
-    threadpool<http_conn>* pool =NULL;
-    try
-    {
-        pool = new threadpool< http_conn >(THREADPOOL_THREAD_NUM,
-                                           QUEUE_SIZE);
-    }
-    catch(...)
-    {
-        return 1;
-    }
-    
+    shared_ptr<threadpool<shared_ptr<http_conn>>> pool(new threadpool<shared_ptr<http_conn>>
+                                           (THREADPOOL_THREAD_NUM, MAXEVENTS));
+
     int listen_fd = socket_bind_listen(PORT);
 
     if(listen_fd < 0)
@@ -129,7 +122,7 @@ int main()
 
     while(true)
     {
-        Epoll::my_epoll_wait(listen_fd,MAXEVENTS,-1);
+        Epoll::my_epoll_wait(listen_fd,MAXEVENTS,-1,pool);
     }
     return 0;
 }

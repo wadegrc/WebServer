@@ -23,8 +23,8 @@ public:
     static int epoll_add(int fd, SP_ReqData request,int ev );
     static int epoll_mod(int fd, SP_ReqData request, int ev );
     static int epoll_del( int fd );
-    static void my_epoll_wait(int listen_fd, int max_events, int timeout ,
-                              std::shared_ptr<threadpool<http_conn>>thread_pool);
+    static void my_epoll_wait(int listen_fd, int max_events, int timeout,
+                              std::shared_ptr<threadpool<std::shared_ptr<http_conn>>>thread_pool);
     static void acceptConn(int listen_fd );
     static vector<SP_ReqData>getEventRequest( int listen_fd, int events_num );
     static void add_Timer(std::shared_ptr<http_conn> request_data, int timeout);

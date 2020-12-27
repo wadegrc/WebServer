@@ -79,7 +79,7 @@ int Epoll::epoll_del( int fd )
 }
 
 void Epoll::my_epoll_wait( int listenfd, int max_events, int timeout ,
-                           std::shared_ptr<threadpool<http_conn>>thread_pool)
+                           std::shared_ptr<threadpool<std::shared_ptr<http_conn>>>thread_pool)
 {
     int event_count = epoll_wait(epoll_fd, events, max_events, timeout);
     if(event_count<0)
@@ -91,7 +91,8 @@ void Epoll::my_epoll_wait( int listenfd, int max_events, int timeout ,
     {
         for(auto &req:req_data)
         {
-            if(thread_pool->thread_add(req)<0){
+            if(!thread_pool->thread_add(req)){
+                printf("thread_fail\n");
                 break;
             }
         }
@@ -122,17 +123,18 @@ void Epoll::acceptConn(int listen_fd)
         }
         SP_ReqData req_info(new http_conn());
         req_info->init(accept_fd,client_addr);
+        printf("req_fd%d\n",req_info->getFd());
         int _epo_event = EPOLLIN|EPOLLET|EPOLLONESHOT;
         Epoll::epoll_add(accept_fd, req_info, _epo_event);
         //加上时间信息
-        timer_manager.addTimer(req_info,TIMER_TIME_OUT);
+        printf("map_fd%d\n",fd2req[accept_fd]->getFd());
     }
 }
 
 //获取响应fd
 vector<std::shared_ptr<http_conn>>Epoll::getEventRequest(int listen_fd, int events_num)
 {
-    printf("getEventRequest\n");
+    printf("getEventRequest-%d\n",events_num);
     std::vector<SP_ReqData>req_data;
     for(int i=0;i<events_num;++i)
     {
@@ -163,13 +165,15 @@ vector<std::shared_ptr<http_conn>>Epoll::getEventRequest(int listen_fd, int even
              /**
              * 将请求加入线程
              * 加入线程之前将计时器与request分离，处理完后加入新的timer*/
-             SP_ReqData cur_req(fd2req[fd]);
-             cur_req->seperateTimer();
-             req_data.push_back(cur_req);
-             if(fd2req.count(fd)!=0)
-             {   
-                 fd2req.erase(fd);
-             }
+            printf("fd-%d\n",fd);
+            SP_ReqData cur_req(fd2req[fd]);
+            cur_req->seperateTimer();
+            printf("Event m_sockfd-%d\n",cur_req->getFd());
+            req_data.push_back(cur_req);
+            if(fd2req.count(fd)!=0)
+            {   
+                fd2req.erase(fd);
+            }
              
          }
     }

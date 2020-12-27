@@ -52,6 +52,7 @@ void http_conn::init( int sockfd )
 }
 void http_conn::init( int sockfd, const sockaddr_in& addr )
 {
+    printf("init%d\n",sockfd);
     m_sockfd = sockfd;
     m_address = addr;
 
@@ -80,6 +81,7 @@ void http_conn::init()
 /*从状态*/
 http_conn::LINE_STATUS http_conn::parse_line()
 {
+    printf("parse_line\n");
     char temp;
     for(; m_checked_idx < m_read_idx; ++m_checked_idx )
     {
@@ -93,6 +95,7 @@ http_conn::LINE_STATUS http_conn::parse_line()
             }
             else if( m_read_buf[ m_checked_idx + 1 ] == '\n' )
             {
+                m_checked_idx+=2;
                 return LINE_OK;
             }
             return LINE_BAD;
@@ -100,6 +103,7 @@ http_conn::LINE_STATUS http_conn::parse_line()
         else if( temp == '\n' ){
             if( (m_checked_idx > 1 ) && ( m_read_buf[ m_checked_idx - 1 ] == '\r' ) )
             {
+                m_checked_idx++;
                 return LINE_OK;
             }
             return LINE_BAD;
@@ -139,6 +143,7 @@ bool http_conn::read()
 /*解析HTTP请求行，获得请求方法，目标URL，以及HTTP版本号*/
 http_conn::HTTP_CODE http_conn::parse_request_line()
 {
+    printf("parse_request_line\n");
     int pos = request_line.find("POST");
     if( pos < 0 )
     {
@@ -155,7 +160,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line()
         m_method = POST;
     }
     pos = request_line.find(" ");
-    int _pos = request_line.find(" ", pos );
+    int _pos = request_line.find(" ", pos+1 );
     m_url = request_line.substr(pos+1, _pos-pos-1 );
     pos = request_line.find("HTTP/1.1");
     if( pos < 0 )
@@ -181,8 +186,10 @@ http_conn::HTTP_CODE http_conn::parse_request_line()
 /*解析HTTP请求的一个头部信息*/
 http_conn::HTTP_CODE http_conn::parse_headers()
 {
+    printf("%s\n",request_line.c_str());
+    printf("parse_headers\n");
     /*遇到空行表示头部字段解析完毕*/
-    if( request_line[0] == '\0' )
+    if( request_line[0] == '\r' )
     {
         /*如果HTTP请求还有消息体，则还需要读取m_content_length字节的消息体
          * 状态机转移到CHECK_STATE_CONTENT状态*/
@@ -229,6 +236,7 @@ http_conn::HTTP_CODE http_conn::parse_headers()
 /*我们没有真正解析HTTP请求的消息体，只是判断它是否被完整的读入了*/
 http_conn::HTTP_CODE http_conn::parse_content()
 {
+    printf("parse_content\n");
     if( m_read_idx >= ( m_content_length + m_checked_idx ) )
     {
         request_line[ m_content_length ] = '\0';
@@ -239,6 +247,7 @@ http_conn::HTTP_CODE http_conn::parse_content()
 /*主状态机*/
 http_conn::HTTP_CODE http_conn::process_read()
 {
+    printf("process_read\n");
     LINE_STATUS line_status = LINE_OK;
     HTTP_CODE ret = NO_REQUEST;
     while( ((m_check_state == CHECK_STATE_CONTENT ) && ( line_status == LINE_OK ) )
@@ -287,6 +296,7 @@ http_conn::HTTP_CODE http_conn::process_read()
             }
         }
     }
+    printf("read_end\n");
     return NO_REQUEST;
 }
 /*当得到一个完整的/正确的HTTP请求时，我们就分析目标文件的属性，如果目标文件存在、对所有用户可读
@@ -294,10 +304,13 @@ http_conn::HTTP_CODE http_conn::process_read()
 
 http_conn::HTTP_CODE http_conn::do_request()
 {
+    printf("do_request\n");
     string curr_file_name = doc_root + m_url;
     const char*m_real_file = curr_file_name.c_str();
+    printf("%s\n",m_real_file);
     if( stat( m_real_file, &m_file_stat ) < 0 )
     {
+        printf("open_file_error\n");
         return NO_REQUEST;
     }
 
@@ -329,7 +342,7 @@ void http_conn::unmap()
 }
 
 /*写HTTP响应*/
-bool http_conn::write()
+void http_conn::write()
 {
     int temp = 0;
     int bytes_have_send = 0;
@@ -338,7 +351,7 @@ bool http_conn::write()
     {
         Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLIN );
         init();
-        return true;
+        return ;
     }
 
     while(1)
@@ -351,10 +364,10 @@ bool http_conn::write()
             if( errno == EAGAIN )
             {
                 Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLOUT );    
-                return true;
+                return ;
             }
             unmap();
-            return false;
+            return ;
         }
         bytes_to_send -= temp;
         bytes_have_send += temp;
@@ -365,14 +378,6 @@ bool http_conn::write()
             if( m_linger )
             {
                 init();
-                Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLIN );
-                return true;
-            }
-            else
-            {
-                Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLIN );
-                
-                return false;
             }
         }
     }
@@ -403,7 +408,7 @@ bool http_conn::add_status_line( int status, string title )
     return add_response( "%s %d %s\r\n", "HTTP/1.1", status, title.c_str() );
 }
 
-bool http_conn::add_headers( int content_len )
+void http_conn::add_headers( int content_len )
 {
     add_content_length( content_len );
     add_linger();
@@ -434,6 +439,7 @@ bool http_conn::add_content( string content )
 /*根据服务器处理HTTP请求的结果，决定返回给客户端的内容*/
 bool http_conn::process_write( HTTP_CODE ret )
 {
+    printf("process_write\n");
     switch ( ret )
     {
     case INTERNAL_ERROR:
@@ -478,6 +484,7 @@ bool http_conn::process_write( HTTP_CODE ret )
         }
     case FILE_REQUEST:
         {
+            printf("FILE_REQUEST\n");
             add_status_line( 200, ok_200_title );
             if( m_file_stat.st_size != 0 )
             {
@@ -513,8 +520,10 @@ bool http_conn::process_write( HTTP_CODE ret )
 /*由线程池中的工作线程调用，这是处理HTTP请求的入口函数*/
 void http_conn::process()
 {   
+    printf("process\n");
     if(!read())
     {
+        printf("read_error\n");
         close_conn();
         return ;
     }
@@ -528,9 +537,11 @@ void http_conn::process()
     bool write_ret = process_write( read_ret );
     if( !write_ret )
     {
+        printf("write_false\n");
         close_conn();
         return ;
     }
+    write();
     Epoll::add_Timer( shared_from_this(),500);
     int ret=Epoll::epoll_mod( m_sockfd,shared_from_this(), EPOLLIN );
     if(ret<0)

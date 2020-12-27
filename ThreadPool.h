@@ -6,6 +6,7 @@
 #include<vector>
 #include<exception>
 #include<memory>
+#include"treatRequest.h"
 /* *
  * 此处为线程池头文件
  * 实现:
@@ -15,8 +16,7 @@
 using std::vector;
 using std::queue;
 using std::exception;
-static int MAX_THREAD_NUM = 8;
-static int MAX_REQUESTS = 10000;
+class http_conn;
 /*代码复用采用模板类*/
 template< typename T >
 class threadpool{
@@ -28,7 +28,7 @@ private:
     /*线程数组*/
     vector<pthread_t>threads;
     /*工作队列*/
-    queue<std::shared_ptr<T>>taskqueue;
+    queue<T>taskqueue;
     /*互斥锁*/
     pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
     /*条件变量*/
@@ -39,15 +39,18 @@ public:
     threadpool( int thread_number, int max_requests );
     ~threadpool();
     int thread_destroy();
-    bool thread_add(std::shared_ptr<T> request);
+    bool thread_add(T request);
     static void* worker( void* arg );
     void run();
 };
 
+
+static int MAX_THREAD_NUM = 8;
+static int MAX_REQUESTS = 10000;
 template< typename T >
 threadpool< T >::threadpool( int thread_number, int max_requests ) :
-    threads(thread_number),m_stop(false),
-    m_thread_number(thread_number),m_max_requests(max_requests)
+    m_thread_number(thread_number),
+    m_max_requests(max_requests),threads(thread_number),m_stop(false)
 {
     if((thread_number<=0)||(thread_number>MAX_THREAD_NUM)||
        (max_requests<=0)||(max_requests>MAX_REQUESTS)){
@@ -82,17 +85,19 @@ threadpool< T >::~threadpool()
 }
 
 
+
 template< typename T >
-bool threadpool<T>::thread_add( std::shared_ptr<T> request )
+bool threadpool<T>::thread_add(T request )
 {
+    printf("thread_add\n");
     pthread_mutex_lock(&lock);
-    if( taskqueue.size() > m_max_requests )
+    if( (int)taskqueue.size() > m_max_requests )
     {
         pthread_mutex_unlock(&lock);
         return false;
     }
+    printf("add_m_sockfd-%d\n",request->getFd());
     taskqueue.push( request );
-    
     if(pthread_cond_signal(&notify)!=0)
     {
         pthread_mutex_unlock(&lock);
@@ -116,21 +121,23 @@ void threadpool< T >::run()
     /*因为为脱离线程，当m_stop为true时，函数执行完毕后会自动回收资源*/
     while( ! m_stop )
     {
+        printf("run\n");
         pthread_mutex_lock(&lock);
         pthread_cond_wait(&notify,&lock);
         if( taskqueue.empty() )
         {
-            pthread_mutex_lock(&lock);
+            pthread_mutex_unlock(&lock);
             continue;
         }
-        T* request = taskqueue.front();
+        T request = taskqueue.front();
+        printf("m_sockfd-%d\n",request->getFd());
         taskqueue.pop();
         pthread_mutex_unlock(&lock);
         if( !request )
         {
+            printf("request_error\n");
             continue;
         }
         request->process();
     }
 }
-

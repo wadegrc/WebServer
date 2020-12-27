@@ -1,7 +1,7 @@
 all: main
 
 main: main.o treatRequest.o timer.o epoll.o util.o
-	g++ $^ -lpthread -o $@
+	g++ $^ -lpthread -std=c++11 -o $@
 
 clean:
 	-rm main *.o
